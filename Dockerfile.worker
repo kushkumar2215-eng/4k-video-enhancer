@@ -1,0 +1,48 @@
+# ==============================================================================
+# Dockerfile.worker — Isolated GPU Worker for Real-ESRGAN Video Super-Resolution
+# ==============================================================================
+# Deploys realesrgan-ncnn-vulkan (BSD-3-Clause) inside a Vulkan/NVIDIA GPU container
+# and exposes the authenticated /v1/upscale-batch endpoint for the Node.js API.
+# ==============================================================================
+
+FROM nvidia/vulkan:1.3-470 AS base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    unzip \
+    ffmpeg \
+    libvulkan1 \
+    mesa-vulkan-drivers \
+    nodejs \
+    npm \
+  && rm -rf /var/lib/apt/lists/*
+
+# Download official portable realesrgan-ncnn-vulkan binary & pre-trained weights
+# Models included: realesr-animevideov3-x2/x3/x4, realesrgan-x4plus
+WORKDIR /opt/realesrgan
+RUN curl -L -o realesrgan.zip \
+    "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip" \
+  && unzip realesrgan.zip \
+  && rm realesrgan.zip \
+  && chmod +x /opt/realesrgan/realesrgan-ncnn-vulkan
+
+ENV REAL_ESRGAN_BIN_PATH="/opt/realesrgan/realesrgan-ncnn-vulkan"
+ENV WORKER_PORT="8080"
+
+# Create non-root worker user and isolated temp directory
+RUN useradd -m -s /bin/bash gpuworker \
+  && mkdir -p /tmp/gpu-worker-batches \
+  && chown -R gpuworker:gpuworker /tmp/gpu-worker-batches /opt/realesrgan
+
+WORKDIR /app
+COPY package.json ./
+RUN npm install --omit=dev && npm install -g tsx
+COPY worker/gpu-worker-server.ts ./worker/gpu-worker-server.ts
+
+USER gpuworker
+EXPOSE 8080
+
+CMD ["tsx", "worker/gpu-worker-server.ts"]

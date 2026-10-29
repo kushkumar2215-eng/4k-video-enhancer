@@ -1,0 +1,6 @@
+{
+  "name": "Free 4K Video Enhancer",
+  "description": "AI-powered video enhancement and 4K UHD super-resolution web application with privacy-focused FFmpeg frame processing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
